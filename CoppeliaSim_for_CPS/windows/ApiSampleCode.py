@@ -29,6 +29,7 @@ with b0RemoteApi.RemoteApiClient('b0RemoteApi_pythonClient', 'b0RemoteApi', 60) 
         while client.executedMovId != id:
             client.simxSpinOnce()
 
+
     def executedMovId_callback(msg):
         if type(msg[1]) == bytes:
             msg[1] = msg[1].decode('ascii')  # python2/python3 differences
@@ -70,15 +71,10 @@ with b0RemoteApi.RemoteApiClient('b0RemoteApi_pythonClient', 'b0RemoteApi', 60) 
     client.simxGetJointPosition(jointHandles[0], client.simxDefaultSubscriber(jointAngleCallback))
     client.simxGetObjectPosition(endeffector, -1, client.simxDefaultSubscriber(endeffectorCallback))
 
-    # After setting up all our data streams we can start the simulation
-    client.simxStartSimulation(client.simxServiceCall())
+    # Subscribe to stringSignalName string signal:
+    client.simxGetStringSignal(stringSignalName, client.simxDefaultSubscriber(executedMovId_callback))
 
-    #####################################################################################################
-    # Actuation type "pts"
-
-    # Wait until ready
-    waitForMovementExecuted('ready')
-    # hard coded coordinates
+    # hard coded coordinates for the pts movement sequence
     times = [0.000, 0.050, 0.100, 0.150, 0.200, 0.250, 0.300, 0.350, 0.400, 0.450, 0.500, 0.550, 0.600, 0.650, 0.700,
              0.750, 0.800, 0.850, 0.900, 0.950, 1.000, 1.050, 1.100, 1.150, 1.200, 1.250, 1.300, 1.350, 1.400, 1.450,
              1.500, 1.550, 1.600, 1.650, 1.700, 1.750, 1.800, 1.850, 1.900, 1.950, 2.000, 2.050, 2.100, 2.150, 2.200,
@@ -153,10 +149,22 @@ with b0RemoteApi.RemoteApiClient('b0RemoteApi_pythonClient', 'b0RemoteApi', 60) 
           0.653, 0.607, 0.561, 0.515, 0.470, 0.424, 0.378, 0.332, 0.286, 0.240, 0.194, 0.149, 0.109, 0.076, 0.048,
           0.027, 0.012, 0.004, 0.002, 0.001, 0.000, 0.000, 0.000]
 
+    # After setting up all our data streams we can start the simulation
+    client.simxStartSimulation(client.simxServiceCall())
+    print('Simulation start')
+
+    # Wait until ready
+    waitForMovementExecuted('ready')
+    print('los')
+
+    #####################################################################################################
+    # Actuation type "pts"
+
     # if you want to generate your joint data as np array,
     # you will have to transform the array into a list via .tolist method
 
     # Generate movement dictionary
+    print('pts Movement sequence')
     movementData = {"id": "movSeq1", "type": "pts", "times": times, "j1": j1, "j2": j2, "j3": j3, "j4": j4,
                     "j5": j5, "j6": j6, "j7": j7}
 
@@ -186,19 +194,19 @@ with b0RemoteApi.RemoteApiClient('b0RemoteApi_pythonClient', 'b0RemoteApi', 60) 
     targetVel = [0, 0, 0, 0, 0, 0, 0]
 
     # Generate movement dictionary
-    movementData = {"id": "movSeq1", "type": "mov", "targetConfig": targetConfig, "targetVel": targetVel,
+    movementData1 = {"id": "movSeq2", "type": "mov", "targetConfig": targetConfig, "targetVel": targetVel,
                     "maxVel": maxVel, "maxAccel": maxAccel}
 
     # Send movement sequence to the simulations
-    client.simxCallScriptFunction('movementDataFunction@' + targetArm, 'sim.scripttype_childscript', movementData,
+    client.simxCallScriptFunction('movementDataFunction@' + targetArm, 'sim.scripttype_childscript', movementData1,
                                   client.simxDefaultPublisher())
 
     # Execute movement sequence
-    client.simxCallScriptFunction('executeMovement@' + targetArm, 'sim.scripttype_childscript', 'movSeq1',
+    client.simxCallScriptFunction('executeMovement@' + targetArm, 'sim.scripttype_childscript', 'movSeq2',
                                   client.simxDefaultPublisher())
 
     # Wait until above movement sequence finished executing:
-    waitForMovementExecuted('movSeq1')
+    waitForMovementExecuted('movSeq2')
 
     #################################################################################################
     # End Simulation
