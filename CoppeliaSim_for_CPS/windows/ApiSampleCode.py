@@ -160,7 +160,7 @@ with b0RemoteApi.RemoteApiClient('b0RemoteApi_pythonClient', 'b0RemoteApi', 60) 
     #####################################################################################################
     # Actuation type "pts"
 
-    # if you want to generate your joint data as np array,
+    # if you want to generate your joint data as numpy array,
     # you will have to transform the array into a list via .tolist method
 
     # Generate movement dictionary

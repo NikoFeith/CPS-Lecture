@@ -9,12 +9,26 @@
 # b0RemoteApi (Python script), which depends several libraries present
 # in the CoppeliaSim folder
 
+####################################################################################
+""" In this Sample Code logging und ploting of the sensed data is added.
+    New Parts are marked with # -lines above and below."""
+####################################################################################
+
 import b0RemoteApi
 import math
+####################################################################################
+""" Import numpy and matplotlib (in case you haven't installed it use pip!"""
+import numpy as np
+import matplotlib.pyplot as plt
+####################################################################################
 
 # Constants
 d2r = math.pi / 180  # conversion factor: degree to radiant
 
+#####################################################################################
+""" Initiate a time series array to log your joint angles with corresponding time."""
+sj1 = np.empty([1, 2])
+#####################################################################################
 
 # Open a connection to Panda in CoppeliaSim
 with b0RemoteApi.RemoteApiClient('b0RemoteApi_pythonClient', 'b0RemoteApi', 60) as client:
@@ -29,21 +43,30 @@ with b0RemoteApi.RemoteApiClient('b0RemoteApi_pythonClient', 'b0RemoteApi', 60) 
         while client.executedMovId != id:
             client.simxSpinOnce()
 
-
     def executedMovId_callback(msg):
         if type(msg[1]) == bytes:
             msg[1] = msg[1].decode('ascii')  # python2/python3 differences
         client.executedMovId = msg[1]
 
+####################################################################################
+    """ Setup the time callback function and the joint angle callback function.
+        Use the numpy array from above to save your data."""
     # Sensing Callback-Functions
-    # Time
+    # Time callback-function
     def timeCallback(msg):
         client.time = msg[1]
 
-    # Joint Position
-    def jointAngleCallback(msg):
+    # Callback - function for joint #1
+    def jointAngleCallback1(msg):
+        # import the joint array as global varaiable
+        global sj1
+        # get the joint data from your message
         jointAngle = msg[1]
-        print('Joint 1: '+str(jointAngle))
+        # Use a numpy array to join the new angle data with the time stamp
+        newAngle = np.array([[client.time, jointAngle]])
+        # append it to your joint data time series
+        sj1 = np.append(sj1, newAngle, axis=0)
+#####################################################################################
 
     # End effector Postion
     def endeffectorCallback(msg):
@@ -68,13 +91,19 @@ with b0RemoteApi.RemoteApiClient('b0RemoteApi_pythonClient', 'b0RemoteApi', 60) 
     client.simxGetSimulationTime(client.simxDefaultSubscriber(timeCallback))
 
     # start the data stream of the joint angle and the end effector coordinates
-    client.simxGetJointPosition(jointHandles[0], client.simxDefaultSubscriber(jointAngleCallback))
+    client.simxGetJointPosition(jointHandles[0], client.simxDefaultSubscriber(jointAngleCallback1))
     client.simxGetObjectPosition(endeffector, -1, client.simxDefaultSubscriber(endeffectorCallback))
 
     # Subscribe to stringSignalName string signal:
     client.simxGetStringSignal(stringSignalName, client.simxDefaultSubscriber(executedMovId_callback))
 
-    # hard coded coordinates for the pts movement sequence
+    # After setting up all our data streams we can start the simulation
+    client.simxStartSimulation(client.simxServiceCall())
+
+    # Actuation type "pts"
+    # Wait until ready
+    waitForMovementExecuted('ready')
+    # hard coded coordinates
     times = [0.000, 0.050, 0.100, 0.150, 0.200, 0.250, 0.300, 0.350, 0.400, 0.450, 0.500, 0.550, 0.600, 0.650, 0.700,
              0.750, 0.800, 0.850, 0.900, 0.950, 1.000, 1.050, 1.100, 1.150, 1.200, 1.250, 1.300, 1.350, 1.400, 1.450,
              1.500, 1.550, 1.600, 1.650, 1.700, 1.750, 1.800, 1.850, 1.900, 1.950, 2.000, 2.050, 2.100, 2.150, 2.200,
@@ -149,22 +178,10 @@ with b0RemoteApi.RemoteApiClient('b0RemoteApi_pythonClient', 'b0RemoteApi', 60) 
           0.653, 0.607, 0.561, 0.515, 0.470, 0.424, 0.378, 0.332, 0.286, 0.240, 0.194, 0.149, 0.109, 0.076, 0.048,
           0.027, 0.012, 0.004, 0.002, 0.001, 0.000, 0.000, 0.000]
 
-    # After setting up all our data streams we can start the simulation
-    client.simxStartSimulation(client.simxServiceCall())
-    print('Simulation start')
-
-    # Wait until ready
-    waitForMovementExecuted('ready')
-    print('los')
-
-    #####################################################################################################
-    # Actuation type "pts"
-
     # if you want to generate your joint data as numpy array,
     # you will have to transform the array into a list via .tolist method
 
     # Generate movement dictionary
-    print('pts Movement sequence')
     movementData = {"id": "movSeq1", "type": "pts", "times": times, "j1": j1, "j2": j2, "j3": j3, "j4": j4,
                     "j5": j5, "j6": j6, "j7": j7}
 
@@ -179,7 +196,6 @@ with b0RemoteApi.RemoteApiClient('b0RemoteApi_pythonClient', 'b0RemoteApi', 60) 
     # Wait until above movement sequence finished executing:
     waitForMovementExecuted('movSeq1')
 
-    ###############################################################################################
     # Actuation type "mov"
 
     # Set-up some movement values:
@@ -194,20 +210,50 @@ with b0RemoteApi.RemoteApiClient('b0RemoteApi_pythonClient', 'b0RemoteApi', 60) 
     targetVel = [0, 0, 0, 0, 0, 0, 0]
 
     # Generate movement dictionary
-    movementData1 = {"id": "movSeq2", "type": "mov", "targetConfig": targetConfig, "targetVel": targetVel,
+    movementData = {"id": "movSeq1", "type": "mov", "targetConfig": targetConfig, "targetVel": targetVel,
                     "maxVel": maxVel, "maxAccel": maxAccel}
 
     # Send movement sequence to the simulations
-    client.simxCallScriptFunction('movementDataFunction@' + targetArm, 'sim.scripttype_childscript', movementData1,
+    client.simxCallScriptFunction('movementDataFunction@' + targetArm, 'sim.scripttype_childscript', movementData,
                                   client.simxDefaultPublisher())
 
     # Execute movement sequence
-    client.simxCallScriptFunction('executeMovement@' + targetArm, 'sim.scripttype_childscript', 'movSeq2',
+    client.simxCallScriptFunction('executeMovement@' + targetArm, 'sim.scripttype_childscript', 'movSeq1',
                                   client.simxDefaultPublisher())
 
     # Wait until above movement sequence finished executing:
-    waitForMovementExecuted('movSeq2')
+    waitForMovementExecuted('movSeq1')
 
-    #################################################################################################
+
     # End Simulation
     client.simxStopSimulation(client.simxServiceCall())
+
+
+#############################################################################################
+""" Finally plot your data with the matplotlib-library.
+    The first 6 results in the joint time series array
+    is corrupted by CoppeliaSim!"""
+
+# post processing
+sj1 = sj1[6:, :]
+
+# Plot
+fig, axs = plt.subplots(2)
+fig.suptitle('Joint 1')
+axs[0].set_title('Joint angles of sensed Joint 1')
+axs[0].plot(sj1[:, 0], sj1[:, 1])
+axs[1].set_title('Joint angles of desired Joint 1')
+axs[1].plot(times, j1, linestyle='dashed')
+
+for ax in axs.flat:
+    ax.set(xlabel='Time [s]', ylabel='Amplitude [rads]')
+    ax.set(xlim=[0, 12])
+
+for ax in axs.flat:
+    ax.label_outer()
+
+
+# don't forget to use plt.show() otherwise python won't show you the plot!
+plt.show()
+
+##########################################################################################
